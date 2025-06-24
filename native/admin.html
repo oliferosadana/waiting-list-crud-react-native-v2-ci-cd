@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiting List Admin Dashboard</title>
+    
+    <!-- Google Fonts - Inter for modern look -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Bootstrap CSS (primarily for button base styles) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        /* Menggunakan font Inter yang diimpor dari Google Fonts */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3ff6; /* Light gray background */
+        }
+
+        /* Overrides/Enhancements for table borders to ensure consistency with Tailwind's border utilities */
+        table.min-w-full th,
+        table.min-w-full td {
+            border-color: #e5e7eb; /* Tailwind's default border-gray-200 color */
+            padding: 0.75rem 1rem; /* Tailwind's default px-4 py-2 converted to rem */
+        }
+        
+        /* Ensure table head background is consistent */
+        table.min-w-full thead tr {
+            background-color: #f9fafb; /* Tailwind's default bg-gray-50 slightly adjusted */
+        }
+
+        /* Custom styles for the confirmation modal, ensuring responsiveness */
+        .modal {
+            display: none !important; /* Hidden by default, JavaScript controls visibility */
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            justify-content: center;
+            align-items: center;
+            padding: 1rem; /* Add padding to modal itself for smaller screens */
+        }
+        .modal.active { /* Gunakan kelas 'active' untuk menampilkan modal dengan JavaScript */
+            display: flex !important;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            padding: 1.5rem; /* Responsive padding */
+            border: 1px solid #d1d5db; /* Light gray border */
+            width: 95%; /* Adjust width for smaller screens */
+            max-width: 500px;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            text-align: center;
+        }
+        /* Make modal buttons responsive */
+        .modal-content button {
+            width: 100%; /* Full width on small screens */
+            padding: 0.75rem 1rem; /* More vertical padding */
+            font-size: 1rem; /* Readable font size */
+        }
+        @media (min-width: 640px) { /* sm breakpoint */
+            .modal-content button {
+                width: auto; /* Auto width for side-by-side buttons */
+            }
+        }
+
+        /* CSS Kustom untuk Tombol Ikon - Disesuaikan untuk Tailwind harmony */
+        .btn-icon-custom {
+            background-color: transparent !important; /* Force transparent background */
+            border: 1px solid var(--bs-btn-border-color, #ccc); /* Default border color or Bootstrap's computed border color */
+            transition: all 0.3s ease; /* Transisi halus untuk efek hover */
+            border-radius: 0.375rem; /* A bit more rounded, common in Tailwind */
+            padding: 0.5rem 0.75rem; /* Adjust padding for better look with icons */
+            display: inline-flex; /* Agar ikon dan padding bekerja dengan baik */
+            align-items: center; /* Pusatkan ikon vertikal */
+            justify-content: center; /* Pusatkan ikon horizontal */
+            line-height: 1; /* Pastikan tinggi baris tidak mengganggu ikon */
+            color: var(--bs-btn-color, #212529); /* Inherit default Bootstrap button text color */
+        }
+
+        .btn-icon-custom i {
+            font-size: 1.15rem; /* Slightly smaller icon for better fit */
+        }
+
+        /* Efek Hover */
+        .btn-icon-custom:hover {
+            border-color: var(--bs-btn-hover-border-color, #0d6efd) !important; /* Use Bootstrap's hover border color or default */
+            box-shadow: 0 0 0 0.25rem var(--bs-btn-focus-shadow-rgb, rgba(13, 110, 253, 0.25)); /* Use Bootstrap's focus shadow */
+            background-color: var(--bs-btn-hover-bg, rgba(0, 0, 0, 0.08)) !important; /* Slight background on hover */
+        }
+
+        /* Specific colors for icons when button background is transparent */
+        .btn-icon-custom.btn-success i { color: #198754; } /* Bootstrap success green */
+        .btn-icon-custom.btn-primary i { color: #0d6efd; } /* Bootstrap primary blue */
+        .btn-icon-custom.btn-danger i { color: #dc3545; } /* Bootstrap danger red */
+
+        /* Override border color for specific button types to match their text color */
+        .btn-icon-custom.btn-success { border-color: #198754; }
+        .btn-icon-custom.btn-primary { border-color: #0d6efd; }
+        .btn-icon-custom.btn-danger { border-color: #dc3545; }
+    </style>
+</head>
+<body class="p-4 sm:p-6 lg:p-8">
+    <div class="max-w-8xl mx-auto bg-white p-6 md:p-8 rounded-lg shadow-xl">
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center md:text-left">Waiting List Manager</h1>
+            <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-200 ease-in-out text-base">Logout</button>
+        </div>
+        <p class="text-gray-600 mb-6 text-center md:text-left text-sm sm:text-base">Kelola daftar tunggu Anda dengan mudah. Tambahkan, edit, dan hapus entri dengan cepat.</p>
+
+        <!-- Container for Form Input and Blast Buttons -->
+        <div class="flex flex-col lg:flex-row gap-6 mb-8">
+            <!-- Form Input & Save/Update Group -->
+            <div class="lg:w-1/2 p-6 bg-gray-50 rounded-lg shadow-sm">
+                <h2 class="text-lg font-semibold text-gray-700 mb-4">Tambah / Edit Antrean</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <input id="nama" type="text" placeholder="Nama" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <input id="nowa" type="text" placeholder="08xxxxxx" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <select id="opt" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        <option value="online">Online</option>
+                        <option value="offline">Offline</option>
+                    </select>
+                </div>
+                <button id="saveUpdateBtn" onclick="handleSaveUpdate()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-200 ease-in-out text-base">Simpan</button>
+            </div>
+
+            <!-- Blast Buttons Group -->
+            <div class="lg:w-1/2 p-6 bg-purple-50 rounded-lg shadow-sm flex flex-col justify-center">
+                <h2 class="text-lg font-semibold text-gray-700 mb-4">Aksi Blast</h2>
+                <div class="flex flex-col gap-4">
+                    <button id="blastAllBtn" onclick="blastAllData()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-200 ease-in-out text-base">Blast Semua Data ke Webhook</button>
+                    <button id="blastWaitingBtn" onclick="blastWaitingData()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-200 ease-in-out text-base">Blast Data Waiting ke Webhook</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Container for Tables Side-by-Side -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Tabel Pendaftaran Tertunda (Pending Registrations) - takes 4 columns -->
+            <div class="lg:col-span-4"> 
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-3 mt-8 text-center md:text-left">Pendaftaran Tertunda</h2>
+                <p class="text-gray-600 mb-6 text-center md:text-left text-sm sm:text-base">Pendaftaran baru yang menunggu persetujuan admin.</p>
+                <div class="overflow-x-auto rounded-lg shadow-md border border-gray-200">
+                    <table class="min-w-full bg-white border-collapse">
+                        <thead>
+                            <tr class="bg-red-100 text-red-700 text-sm md:text-base">
+                                <th class="px-4 py-3 text-left">Nama</th>
+                                <th class="px-4 py-3 text-left">No WA</th>
+                                <th class="px-4 py-3 text-left">Registrasi</th>
+                                <th class="px-4 py-3 text-left">Reg. Time</th>
+                                <th class="px-4 py-3 text-left">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendingData" class="divide-y divide-gray-200 text-sm">
+                            <tr>
+                                <td colspan="5" class="px-4 py-4 text-center text-gray-500">Memuat pendaftaran tertunda...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tabel Utama Daftar Tunggu (Waiting List) - takes 8 columns -->
+            <div class="lg:col-span-8"> 
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-3 mt-8 text-center md:text-left">Daftar Tunggu Aktif</h2>
+                <p class="text-gray-600 mb-6 text-center md:text-left text-sm sm:text-base">Pengguna yang sudah disetujui dan berada dalam antrean.</p>
+                <div class="overflow-x-auto rounded-lg shadow-md border border-gray-200">
+                    <table class="min-w-full bg-white border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 text-gray-700 text-sm md:text-base">
+                                <th class="px-4 py-3 text-left">Antrian</th>
+                                <th class="px-4 py-3 text-left">Nama</th>
+                                <th class="px-4 py-3 text-left">No WA</th>
+                                <th class="px-4 py-3 text-left">Blast</th>
+                                <th class="px-4 py-3 text-left">Status</th>
+                                <th class="px-4 py-3 text-left">Registrasi</th>
+                                <th class="px-4 py-3 text-left">Reg. Time</th>
+                                <th class="px-4 py-3 text-left">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data" class="divide-y divide-gray-200 text-sm">
+                            <tr>
+                                <td colspan="8" class="px-4 py-4 text-center text-gray-500">Memuat data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirmationModal" class="modal">
+        <div class="modal-content">
+            <p class="text-lg font-medium mb-4" id="modalMessage"></p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <button id="modalConfirmBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold rounded-md transition duration-200 ease-in-out">Ya</button>
+                <button id="modalCancelBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold rounded-md transition duration-200 ease-in-out">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Socket.io client library for real-time communication -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        // Inisialisasi koneksi Socket.io ke backend Express.js
+        const socket = io('http://localhost:3001');
+
+        // Event listener untuk koneksi sukses
+        socket.on('connect', () => {
+            console.log('Terhubung ke Socket.io server.');
+        });
+
+        // Event listener untuk disconnect
+        socket.on('disconnect', () => {
+            console.log('Terputus dari Socket.io server.');
+        });
+
+        // Mendengarkan event 'data_updated' dari server untuk memicu pembaruan data
+        socket.on('data_updated', () => {
+            console.log('Menerima notifikasi data diperbarui dari server. Memuat ulang data tabel.');
+            loadAllData(); // Panggil fungsi untuk memuat ulang kedua tabel
+        });
+
+
+        // --- Proteksi Halaman Admin ---
+        if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+            window.location.href = 'login.html';
+        }
+
+        // --- Logout Functionality ---
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            sessionStorage.removeItem('isLoggedIn');
+            window.location.href = 'login.html';
+        });
+
+        let editingId = null;
+
+        // --- Modal Functionality ---
+        const confirmationModal = document.getElementById('confirmationModal');
+        const modalMessage = document.getElementById('modalMessage');
+        const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+        const modalCancelBtn = document.getElementById('modalCancelBtn');
+
+        let onConfirmCallback = null;
+
+        function showConfirmationModal(message, callback) {
+            console.log("showConfirmationModal dipanggil. Pesan:", message);
+            if (!message || (typeof message === 'string' && message.trim() === "")) {
+                modalMessage.textContent = "Modal dipicu tanpa pesan spesifik. Periksa konsol browser untuk detail panggilan (Error Stack).";
+                console.warn("showConfirmationModal dipanggil dengan pesan kosong atau null/undefined.", new Error().stack);
+            } else {
+                modalMessage.textContent = message;
+            }
+            onConfirmCallback = callback;
+            confirmationModal.classList.add('active'); 
+        }
+
+        function hideConfirmationModal() {
+            confirmationModal.classList.remove('active'); 
+            onConfirmCallback = null;
+        }
+
+        modalConfirmBtn.onclick = () => {
+            if (onConfirmCallback) {
+                onConfirmCallback(true);
+            }
+            hideConfirmationModal();
+        };
+
+        modalCancelBtn.onclick = () => {
+            if (onConfirmCallback) {
+                onConfirmCallback(false);
+            }
+            hideConfirmationModal();
+        };
+
+        // --- Utility Function: Mask Phone Number ---
+        const maskPhoneNumber = (phoneNumber) => {
+            if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.length <= 4) {
+                return phoneNumber;
+            }
+            const lastFourDigits = phoneNumber.slice(-4);
+            const maskedPart = 'x'.repeat(phoneNumber.length - 4);
+            return maskedPart + lastFourDigits;
+        };
+
+        /**
+         * Mengformat timestamp ISO string menjadi tanggal dan waktu yang mudah dibaca.
+         * @param {string} isoString - Timestamp dalam format ISO 8601.
+         * @returns {string} Tanggal dan waktu yang diformat atau '-' jika tidak valid.
+         */
+        const formatDateTime = (isoString) => {
+            if (!isoString) return '-';
+            try {
+                const date = new Date(isoString);
+                if (isNaN(date.getTime())) {
+                    return '-';
+                }
+                const options = {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                };
+                return date.toLocaleString('id-ID', options);
+            } catch (e) {
+                console.error("Error formatting date:", e);
+                return '-';
+            }
+        };
+
+        // --- CRUD Operations for Main Waiting List ---
+        const editData = (id, nama, nowa, reg) => {
+            document.getElementById('nama').value = nama;
+            document.getElementById('nowa').value = nowa;
+            document.getElementById('opt').value = reg;
+            editingId = id;
+            document.getElementById('saveUpdateBtn').textContent = 'Update';
+            document.getElementById('saveUpdateBtn').classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            document.getElementById('saveUpdateBtn').classList.add('bg-green-600', 'hover:bg-green-700');
+        };
+
+        const updateStatus = async (id, newStatus) => {
+            try {
+                await axios.patch(`http://localhost:3001/api/users/${id}`, { status: newStatus });
+                console.log(`Status for ID ${id} updated to ${newStatus}`);
+                // loadAllData(); // Tidak perlu panggil manual, socket.io akan memicu
+            } catch (error) {
+                console.error("Error updating status:", error);
+                showConfirmationModal("Gagal mengubah status: " + (error.response?.data?.message || error.message), () => {});
+            }
+        };
+
+        const saveData = async () => {
+            const nameGet = document.getElementById('nama').value;
+            const nowaGet = document.getElementById('nowa').value;
+            const optGet = document.getElementById('opt').value;
+            const statusGet = 'waiting';
+
+            if (!nameGet || !nowaGet) {
+                showConfirmationModal("Nama dan No WA tidak boleh kosong!", () => {});
+                return;
+            }
+
+            try {
+                await axios.post(`http://localhost:3001/api/users`, {
+                    nama: nameGet,
+                    nowa: nowaGet,
+                    status: statusGet,
+                    reg: optGet,
+                    regTime: new Date().toISOString()
+                });
+                showConfirmationModal("Data berhasil disimpan!", () => {});
+                clearForm();
+                // loadAllData(); // Tidak perlu panggil manual, socket.io akan memicu
+            } catch (error) {
+                console.error("Error saving data:", error);
+                showConfirmationModal("Gagal menyimpan data: " + (error.response?.data?.message || error.message), () => {});
+            }
+        };
+
+        const updateData = async (id) => {
+            const nameGet = document.getElementById('nama').value;
+            const nowaGet = document.getElementById('nowa').value;
+            const optGet = document.getElementById('opt').value;
+
+            if (!nameGet || !nowaGet) {
+                showConfirmationModal("Nama dan No WA tidak boleh kosong!", () => {});
+                return;
+            }
+
+            try {
+                await axios.put(`http://localhost:3001/api/users/${id}`, {
+                    nama: nameGet,
+                    nowa: nowaGet,
+                    reg: optGet,
+                    status: (await axios.get(`http://localhost:3001/api/users/${id}`)).data.status,
+                    regTime: (await axios.get(`http://localhost:3001/api/users/${id}`)).data.regTime
+                });
+                showConfirmationModal("Data berhasil diperbarui!", () => {});
+                clearForm();
+                editingId = null;
+                document.getElementById('saveUpdateBtn').textContent = 'Simpan';
+                document.getElementById('saveUpdateBtn').classList.remove('bg-green-600', 'hover:bg-green-700');
+                document.getElementById('saveUpdateBtn').classList.add('bg-blue-600', 'hover:bg-blue-700');
+                // loadAllData(); // Tidak perlu panggil manual, socket.io akan memicu
+            } catch (error) {
+                console.error("Error updating data:", error);
+                showConfirmationModal("Gagal memperbarui data: " + (error.response?.data?.message || error.message), () => {});
+            }
+        };
+
+        const handleSaveUpdate = () => {
+            if (editingId) {
+                updateData(editingId);
+            } else {
+                saveData();
+            }
+        };
+
+        const deleteData = (id) => {
+            showConfirmationModal("Apakah Anda yakin ingin menghapus data ini?", async (confirmed) => {
+                if (confirmed) {
+                    try {
+                        await axios.delete(`http://localhost:3001/api/users/${id}`);
+                        showConfirmationModal("Data berhasil dihapus!", () => {});
+                        // loadAllData(); // Tidak perlu panggil manual, socket.io akan memicu
+                    } catch (error) {
+                        console.error("Error deleting data:", error);
+                        showConfirmationModal("Gagal menghapus data: " + (error.response?.data?.message || error.message), () => {});
+                    }
+                }
+            });
+        };
+
+        const clearForm = () => {
+            document.getElementById('nama').value = '';
+            document.getElementById('nowa').value = '';
+            document.getElementById('opt').value = 'online';
+            editingId = null;
+            document.getElementById('saveUpdateBtn').textContent = 'Simpan';
+            document.getElementById('saveUpdateBtn').classList.remove('bg-green-600', 'hover:bg-green-700');
+            document.getElementById('saveUpdateBtn').classList.add('bg-blue-600', 'hover:bg-blue-700');
+        };
+
+        const blastAllData = async () => {
+            const n8nWebhookUrl = 'https://n8n.oodana.my.id/webhook-test/crud'; 
+
+            if (n8nWebhookUrl === 'YOUR_N8N_WEBHOOK_URL_HERE') { 
+                showConfirmationModal("Harap ganti 'YOUR_N8N_WEBHOOK_URL_HERE' dengan URL webhook N8N Anda yang sebenarnya.", () => {});
+                return;
+            }
+
+            showConfirmationModal("Apakah Anda yakin ingin mengirim semua data ke webhook N8N?", async (confirmed) => {
+                if (confirmed) {
+                    try {
+                        const response = await axios.get(`http://localhost:3001/api/users`);
+                        const usersData = response.data;
+
+                        if (usersData.length === 0) {
+                            showConfirmationModal("Tidak ada data untuk dikirim.", () => {});
+                            return;
+                        }
+
+                        await axios.post(n8nWebhookUrl, usersData, {
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        showConfirmationModal("Semua data berhasil dikirim ke webhook N8N!", () => {});
+                    }
+                    catch (error) {
+                        console.error("Error blasting data to N8N:", error);
+                        showConfirmationModal("Gagal mengirim data ke webhook N8N: " + (error.response?.data?.message || error.message), () => {});
+                    }
+                }
+            });
+        };
+
+        const blastWaitingData = async () => {
+            const n8nWebhookUrl = 'https://n8n.oodana.my.id/webhook-test/crud'; 
+
+            if (n8nWebhookUrl === 'YOUR_N8N_WEBHOOK_URL_HERE') { 
+                showConfirmationModal("Harap ganti 'YOUR_N8N_WEBHOOK_URL_HERE' dengan URL webhook N8N Anda yang sebenarnya.", () => {});
+                return;
+            }
+
+            showConfirmationModal("Apakah Anda yakin ingin mengirim data status 'waiting' ke webhook N8N?", async (confirmed) => {
+                if (confirmed) {
+                    try {
+                        const response = await axios.get(`http://localhost:3001/api/users`);
+                        const waitingUsersData = response.data.filter(user => user.status === 'waiting');
+
+                        if (waitingUsersData.length === 0) {
+                            showConfirmationModal("Tidak ada data dengan status 'waiting' untuk dikirim.", () => {});
+                            return;
+                        }
+
+                        await axios.post(n8nWebhookUrl, waitingUsersData, {
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        showConfirmationModal("Data 'waiting' berhasil dikirim ke webhook N8N!", () => {});
+                    } catch (error) {
+                        console.error("Error blasting waiting data to N8N:", error);
+                        showConfirmationModal("Gagal mengirim data 'waiting' ke webhook N8N: " + (error.response?.data?.message || error.message), () => {});
+                    }
+                }
+            });
+        };
+
+        const blastData = async (id) => {
+            const webHookUrlData = "https://n8n.oodana.my.id/webhook-test/crud";
+            let userData = null;
+
+            try {
+                const response = await axios.get(`http://localhost:3001/api/users/${id}`);
+                userData = response.data;
+
+                if (userData) {
+                    const webhookResponse = await axios.post(webHookUrlData, userData, {
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    console.log("Data sent to n8n successfully:", webhookResponse.data);
+                    showConfirmationModal("Data berhasil dikirim ke webhook N8N!", (confirmed) => {});
+                } else {
+                    console.warn("No user data found to send to n8n.");
+                }
+
+            } catch (error) {
+                console.error("Error blasting data:", error);
+                showConfirmationModal("Gagal mengirim data: " + (error.response?.data?.message || error.message), () => {});
+            }
+        };
+
+        // --- Pending Registrations Functions ---
+        const acceptPendingRegistration = async (id) => {
+            showConfirmationModal("Apakah Anda yakin ingin menerima pendaftaran ini?", async (confirmed) => {
+                if (confirmed) {
+                    try {
+                        await axios.patch(`http://localhost:3001/api/users/${id}`, { status: 'waiting' });
+                        showConfirmationModal("Pendaftaran berhasil diterima!", () => {});
+                        // loadAllData(); // Tidak perlu panggil manual, socket.io akan memicu
+                    } catch (error) {
+                        console.error("Error accepting registration:", error);
+                        showConfirmationModal("Gagal menerima pendaftaran: " + (error.response?.data?.message || error.message), () => {});
+                    }
+                }
+            });
+        };
+
+        const rejectPendingRegistration = async (id) => {
+            showConfirmationModal("Apakah Anda yakin ingin menolak pendaftaran ini? Ini akan menghapusnya dari daftar tertunda.", async (confirmed) => {
+                if (confirmed) {
+                    try {
+                        await axios.patch(`http://localhost:3001/api/users/${id}`, { status: 'rejected' });
+                        showConfirmationModal("Pendaftaran berhasil ditolak!", () => {});
+                        // loadAllData(); // Tidak perlu panggil manual, socket.io akan memicu
+                    } catch (error) {
+                        console.error("Error rejecting registration:", error);
+                        showConfirmationModal("Gagal menolak pendaftaran: " + (error.response?.data?.message || error.message), () => {});
+                    }
+                }
+            });
+        };
+
+        const updatePendingRegistrationReg = async (id, newRegType) => {
+            try {
+                await axios.patch(`http://localhost:3001/api/users/${id}`, { reg: newRegType });
+                console.log(`Registration type for ID ${id} updated to ${newRegType}`);
+                // loadAllData(); // Tidak perlu panggil manual, socket.io akan memicu
+            } catch (error) {
+                console.error("Error updating pending registration type:", error);
+                showConfirmationModal("Gagal mengubah tipe registrasi: " + (error.response?.data?.message || error.message), () => {});
+            }
+        };
+
+        const loadPendingRegistrations = async () => {
+            try {
+                const response = await axios.get(`http://localhost:3001/api/users`);
+                let bucket = ``;
+                const pendingUsers = response.data.filter(user => user.status === 'pending').sort((a,b) => a.id - b.id);
+
+                if (pendingUsers.length > 0) {
+                    for (let i = 0; i < pendingUsers.length; i++) {
+                        const user = pendingUsers[i];
+                        const sanitizedNama = user.nama ? user.nama.replace(/'/g, "\\'") : '';
+                        const maskedNowa = maskPhoneNumber(user.nowa);
+                        const sanitizedReg = user.reg ? user.reg.replace(/'/g, "\\'") : '';
+                        const regTimeDisplay = formatDateTime(user.regTime);
+
+                        bucket += `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2">${sanitizedNama}</td>
+                            <td class="px-4 py-2">${maskedNowa}</td>
+                            <td class="px-4 py-2">
+                                <select onchange="updatePendingRegistrationReg(${user.id}, this.value)"
+                                        class="p-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-sm">
+                                    <option value="online" ${sanitizedReg === 'online' ? 'selected' : ''}>Online</option>
+                                    <option value="offline" ${sanitizedReg === 'offline' ? 'selected' : ''}>Offline</option>
+                                </select>
+                            </td>
+                            <td class="px-4 py-2">${regTimeDisplay}</td>
+                            <td class="px-4 py-2 flex flex-row space-x-2 whitespace-nowrap">
+                                <button class="btn btn-success btn-icon-custom" onclick="acceptPendingRegistration(${user.id})" title="Terima Pendaftaran">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                </button>
+                                <button class="btn btn-danger btn-icon-custom" onclick="rejectPendingRegistration(${user.id})" title="Tolak Pendaftaran">
+                                    <i class="bi bi-x-circle-fill"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        `;
+                    }
+                    document.getElementById('pendingData').innerHTML = bucket;
+                } else {
+                    bucket += `
+                        <tr>
+                            <td colspan="5" class="px-4 py-4 text-center text-gray-500">Tidak ada pendaftaran tertunda.</td>
+                        </tr>
+                    `;
+                    document.getElementById('pendingData').innerHTML = bucket;
+                }
+            } catch (error) {
+                let bucket = `
+                    <tr>
+                        <td colspan="5" class="px-4 py-4 text-center text-red-500">Gagal memuat pendaftaran tertunda: ${error.response?.data?.message || error.message}. Pastikan Express.js server berjalan pada http://localhost:3001.</td>
+                    </tr>
+                `;
+                document.getElementById('pendingData').innerHTML = bucket;
+                console.error("Error fetching pending registrations:", error);
+            }
+        };
+
+        const loadWaitingListData = async () => {
+            try {
+                const response = await axios.get(`http://localhost:3001/api/users`);
+                let bucket = ``;
+                let users = response.data.filter(user => user.status === 'waiting' || user.status === 'play' || user.status === 'close');
+                
+                let antrianCounter = 0;
+
+                if (users.length > 0) {
+                    const waitingInQueue = users.filter(user => user.status === 'waiting').sort((a, b) => a.id - b.id);
+                    const playingAndClosed = users.filter(user => user.status === 'play' || user.status === 'close').sort((a, b) => a.id - b.id);
+
+                    const sortedUsers = [...waitingInQueue, ...playingAndClosed];
+
+                    for (let i = 0; i < sortedUsers.length; i++) {
+                        const user = sortedUsers[i];
+                        let antrianDisplay = '';
+                        if (user.status === 'waiting') {
+                            antrianCounter++;
+                            antrianDisplay = antrianCounter;
+                        }
+
+                        const sanitizedNama = user.nama ? user.nama.replace(/'/g, "\\'") : '';
+                        const sanitizedNowa = user.nowa ? user.nowa.replace(/'/g, "\\'") : '';
+                        const sanitizedReg = user.reg ? user.reg.replace(/'/g, "\\'") : '';
+                        const regTimeDisplay = formatDateTime(user.regTime);
+
+                        bucket +=
+                        `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2">${antrianDisplay}</td>
+                            <td class="px-4 py-2">${sanitizedNama}</td>
+                            <td class="px-4 py-2">${sanitizedNowa}</td>
+                            <td class="px-4 py-2 whitespace-nowrap">
+                                <button class="btn btn-success btn-icon-custom me-2" onclick="blastData(${user.id})" title="Kirim Pesan WhatsApp">
+                                    <i class="bi bi-whatsapp"></i>
+                                </button>
+                            </td>
+                            <td class="px-4 py-2">
+                                <select onchange="updateStatus(${user.id}, this.value)"
+                                            class="p-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-sm">
+                                    <option value="waiting" ${user.status === 'waiting' ? 'selected' : ''}>Waiting</option>
+                                    <option value="play" ${user.status === 'play' ? 'selected' : ''}>Playing</option>
+                                    <option value="close" ${user.status === 'close' ? 'selected' : ''}>Closed</option>
+                                </select>
+                            </td>
+                            <td class="px-4 py-2">${sanitizedReg}</td>
+                            <td class="px-4 py-2">${regTimeDisplay}</td>
+                            <td class="px-4 py-2 flex flex-row space-x-2">
+                                <button class="btn btn-primary btn-icon-custom" onclick="editData(${user.id}, '${sanitizedNama}', '${sanitizedNowa}', '${sanitizedReg}')" title="Edit Data">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                                <button class="btn btn-danger btn-icon-custom" onclick="deleteData(${user.id})" title="Hapus Data">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        `;
+                    }
+                    document.getElementById('data').innerHTML = bucket;
+                } else {
+                    bucket += `
+                        <tr>
+                            <td colspan="8" class="px-4 py-4 text-center text-gray-500">Data Tidak Ditemukan</td>
+                        </tr>
+                    `;
+                    document.getElementById('data').innerHTML = bucket;
+                }
+            } catch (error) {
+                let bucket = `
+                    <tr>
+                        <td colspan="8" class="px-4 py-4 text-center text-red-500">Gagal memuat data: ${error.response?.data?.message || error.message}. Pastikan Express.js server berjalan pada http://localhost:3001.</td>
+                    </tr>
+                `;
+                document.getElementById('data').innerHTML = bucket;
+                console.error("Error fetching waiting list data:", error);
+            }
+        };
+
+        const loadAllData = () => {
+            loadPendingRegistrations();
+            loadWaitingListData();
+        };
+
+        document.addEventListener('DOMContentLoaded', loadAllData);
+    </script>
+</body>
+</html>
