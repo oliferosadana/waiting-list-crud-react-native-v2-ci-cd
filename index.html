@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>React App Antrean</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React Development Versions (for simple local testing) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for JSX transformation (for simple local testing) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Axios CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Socket.io client library for real-time communication -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Import React hooks, axios, and socket.io-client
+        const { useState, useEffect, useCallback } = React;
+        const axios = window.axios; // Use window.axios because it's loaded from CDN
+        const io = window.io;     // Use window.io because it's loaded from CDN
+
+        // Base URL for your Express.js backend server
+        const BASE_API_URL = 'http://localhost:3001/api';
+        // Specific N8N Webhook URLs
+        const N8N_WEBHOOK_ALL_DATA = 'https://n8n.oodana.my.id/webhook/all-data'; // Replace with your actual N8N webhook URL
+        const N8N_WEBHOOK_WAITING = 'https://n8n.oodana.my.id/webhook/waiting';   // Replace with your actual N8N webhook URL
+        const N8N_WEBHOOK_DATA = 'https://n8n.oodana.my.id/webhook/data';         // Replace with your actual N8N webhook URL
+        const N8N_WEBHOOK_PENDING = 'https://n8n.oodana.my.id/webhook/pending'; // Add this for pending registration webhook
+
+        // Initialize Socket.io connection (outside component to prevent re-creation on re-renders)
+        const socket = io('http://localhost:3001');
+
+        function App() {
+            // State to manage current page
+            const [currentPage, setCurrentPage] = useState('publicRegister'); // 'login', 'admin', 'userDashboard', 'publicRegister'
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+            // State for reusable confirmation/info modal
+            const [showModal, setShowModal] = useState(false);
+            const [modalMessage, setModalMessage] = useState('');
+            const [modalCallback, setModalCallback] = useState(null);
+
+            // Function to show the modal
+            const showConfirmationModal = useCallback((message, callback) => {
+                setModalMessage(message);
+                setModalCallback(() => callback); // Use a functional update to set callback
+                setShowModal(true);
+            }, []);
+
+            // Function to hide the modal
+            const hideConfirmationModal = useCallback(() => {
+                setShowModal(false);
+                setModalMessage('');
+                setModalCallback(null);
+            }, []);
+
+            // Effect for initial authentication check (runs once on component mount)
+            useEffect(() => {
+                const loggedInStatus = sessionStorage.getItem('isLoggedIn') === 'true';
+                setIsLoggedIn(loggedInStatus);
+                if (loggedInStatus) {
+                    setCurrentPage('admin'); // If logged in, go directly to admin dashboard
+                } else {
+                    // Decide where to go if not logged in (e.g., public registration or login)
+                    // For this combined app, we can default to public registration or login page
+                    setCurrentPage('publicRegister'); // Or 'login' if you want admin login as default entry
+                }
+            }, []);
+
+            // Helper functions (can be outside App or memoized if passed down heavily)
+            const maskPhoneNumber = (phoneNumber) => {
+                if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.length <= 4) {
+                    return phoneNumber;
+                }
+                const lastFourDigits = phoneNumber.slice(-4);
+                const maskedPart = 'x'.repeat(phoneNumber.length - 4);
+                return maskedPart + lastFourDigits;
+            };
+
+            const formatDateTime = (isoString) => {
+                if (!isoString) return '-';
+                try {
+                    const date = new Date(isoString);
+                    if (isNaN(date.getTime())) {
+                        return '-';
+                    }
+                    const options = {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    };
+                    return date.toLocaleString('id-ID', options);
+                } catch (e) {
+                    console.error("Error formatting date:", e);
+                    return '-';
+                }
+            };
+
+            // --- Components / Page Views ---
+
+            // 1. Admin Login Page
+            const LoginPage = () => {
+                const [username, setUsername] = useState('');
+                const [password, setPassword] = useState('');
+                const [errorMessage, setErrorMessage] = useState('');
+
+                const handleLogin = async (e) => {
+                    e.preventDefault();
+                    try {
+                        const response = await axios.post(`${BASE_API_URL}/login`, { username, password });
+                        if (response.data.success) {
+                            sessionStorage.setItem('isLoggedIn', 'true');
+                            setIsLoggedIn(true);
+                            setCurrentPage('admin');
+                        } else {
+                            setErrorMessage(response.data.message || 'Nama pengguna atau kata sandi salah.');
+                        }
+                    } catch (error) {
+                        console.error("Error saat login:", error);
+                        setErrorMessage(error.response?.data?.message || 'Terjadi kesalahan saat mencoba login. Coba lagi nanti.');
+                    }
+                };
+
+                return (
+                    <div className="login-container">
+                        <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">Login Admin</h1>
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div>
+                                <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">Nama Pengguna</label>
+                                <input
+                                    type="text"
+                                    id="username"
+                                    className="input-field"
+                                    placeholder="Masukkan nama pengguna"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">Kata Sandi</label>
+                                <input
+                                    type="password"
+                                    id="password"
+                                    className="input-field"
+                                    placeholder="Masukkan kata sandi"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            {errorMessage && <div className="error-message text-center">{errorMessage}</div>}
+                            <button type="submit" className="btn-primary-login">Login</button>
+                        </form>
+                        <div className="text-center mt-4">
+                            <button onClick={() => setCurrentPage('publicRegister')} className="text-blue-600 hover:underline text-sm">Kembali ke Pendaftaran</button>
+                        </div>
+                    </div>
+                );
+            };
+
+            // 2. Admin Dashboard Page
+            const AdminDashboardPage = () => {
+                const [pendingUsers, setPendingUsers] = useState([]);
+                const [activeUsers, setActiveUsers] = useState([]);
+                const [nama, setNama] = useState('');
+                const [nowa, setNowa] = useState('');
+                const [regType, setRegType] = useState('online');
+                const [editingId, setEditingId] = useState(null);
+
+                // Load data for both tables
+                const loadAllData = useCallback(async () => {
+                    try {
+                        const response = await axios.get(`${BASE_API_URL}/users`);
+                        const allUsers = response.data;
+
+                        const pending = allUsers.filter(user => user.status === 'pending').sort((a, b) => a.id - b.id);
+                        const active = allUsers.filter(user => user.status === 'waiting' || user.status === 'play' || user.status === 'close').sort((a, b) => a.id - b.id);
+
+                        setPendingUsers(pending);
+                        setActiveUsers(active);
+                    } catch (error) {
+                        console.error("Error fetching data:", error);
+                        showConfirmationModal(`Gagal memuat data: ${error.response?.data?.message || error.message}. Pastikan Express.js server berjalan pada ${BASE_API_URL}.`, () => {});
+                    }
+                }, [showConfirmationModal]);
+
+                // Effect to load data on mount and listen for socket updates
+                useEffect(() => {
+                    if (isLoggedIn) { // Only load data if logged in
+                        loadAllData();
+
+                        socket.on('data_updated', () => {
+                            console.log('Menerima notifikasi data diperbarui dari server. Memuat ulang data tabel.');
+                            loadAllData();
+                        });
+
+                        return () => {
+                            socket.off('data_updated'); // Clean up on unmount
+                        };
+                    }
+                }, [isLoggedIn, loadAllData]);
+
+                // Handlers for CRUD operations
+                const clearForm = useCallback(() => {
+                    setNama('');
+                    setNowa('');
+                    setRegType('online');
+                    setEditingId(null);
+                }, []);
+
+                const handleSaveUpdate = async () => {
+                    if (!nama || !nowa) {
+                        showConfirmationModal("Nama dan No WA tidak boleh kosong!", () => {});
+                        return;
+                    }
+
+                    try {
+                        if (editingId) {
+                            // For PUT, fetch existing user data to retain status and regTime
+                            const existingUser = (await axios.get(`${BASE_API_URL}/users/${editingId}`)).data;
+                            await axios.put(`${BASE_API_URL}/users/${editingId}`, {
+                                ...existingUser, // Spread existing data
+                                nama: nama,
+                                nowa: nowa,
+                                reg: regType
+                            });
+                            showConfirmationModal("Data berhasil diperbarui!", () => {});
+                        } else {
+                            await axios.post(`${BASE_API_URL}/users`, {
+                                nama: nama,
+                                nowa: nowa,
+                                status: 'waiting', // Admin manually adding implies 'waiting'
+                                reg: regType,
+                                regTime: new Date().toISOString()
+                            });
+                            showConfirmationModal("Data berhasil disimpan!", () => {});
+                        }
+                        clearForm();
+                        // Data will be reloaded via socket.io 'data_updated' event
+                    } catch (error) {
+                        console.error("Error saving/updating data:", error);
+                        showConfirmationModal("Gagal menyimpan/memperbarui data: " + (error.response?.data?.message || error.message), () => {});
+                    }
+                };
+
+                const editData = useCallback((user) => {
+                    setNama(user.nama);
+                    setNowa(user.nowa);
+                    setRegType(user.reg);
+                    setEditingId(user.id);
+                }, []);
+
+                const deleteData = (id) => {
+                    showConfirmationModal("Apakah Anda yakin ingin menghapus data ini?", async (confirmed) => {
+                        if (confirmed) {
+                            try {
+                                await axios.delete(`${BASE_API_URL}/users/${id}`);
+                                showConfirmationModal("Data berhasil dihapus!", () => {});
+                                // Data will be reloaded via socket.io 'data_updated' event
+                            } catch (error) {
+                                console.error("Error deleting data:", error);
+                                showConfirmationModal("Gagal menghapus data: " + (error.response?.data?.message || error.message), () => {});
+                            }
+                        }
+                    });
+                };
+
+                const updateStatus = async (id, newStatus) => {
+                    try {
+                        await axios.patch(`${BASE_API_URL}/users/${id}`, { status: newStatus });
+                        console.log(`Status for ID ${id} updated to ${newStatus}`);
+                        // Data will be reloaded via socket.io 'data_updated' event
+                    } catch (error) {
+                        console.error("Error updating status:", error);
+                        showConfirmationModal("Gagal mengubah status: " + (error.response?.data?.message || error.message), () => {});
+                    }
+                };
+
+                const acceptPendingRegistration = (id) => {
+                    showConfirmationModal("Apakah Anda yakin ingin menerima pendaftaran ini?", async (confirmed) => {
+                        if (confirmed) {
+                            try {
+                                // 1. Ambil data pengguna sebelum memperbarui status (statusnya masih 'pending')
+                                const initialUserDataResponse = await axios.get(`${BASE_API_URL}/users/${id}`);
+                                let userData = initialUserDataResponse.data;
+
+                                // 2. Perbarui status di database Anda menjadi 'waiting'
+                                await axios.patch(`${BASE_API_URL}/users/${id}`, { status: 'waiting' });
+                                
+                                // 3. Ambil ulang semua pengguna untuk mendapatkan daftar antrean terbaru
+                                // Ini penting untuk menghitung nomor antrean yang akurat setelah perubahan status
+                                const updatedAllUsersResponse = await axios.get(`${BASE_API_URL}/users`);
+                                const updatedAllUsers = updatedAllUsersResponse.data;
+
+                                // Filter dan urutkan hanya pengguna 'waiting' untuk menentukan urutan antrean
+                                const waitingUsersInUpdatedQueue = updatedAllUsers
+                                    .filter(u => u.status === 'waiting')
+                                    .sort((a, b) => a.id - b.id); // Urutkan berdasarkan ID untuk konsistensi nomor antrean
+                                
+                                // Temukan posisi pengguna yang baru diterima dalam antrean yang diperbarui
+                                const acceptedUserIndex = waitingUsersInUpdatedQueue.findIndex(u => u.id === id);
+                                const queueNumber = acceptedUserIndex !== -1 ? acceptedUserIndex + 1 : null;
+
+                                // 4. Kirim data pengguna ke webhook N8N, termasuk nomor antrean dan aksi
+                                if (userData) { // Pastikan data pengguna ada
+                                    console.log(`Mengirim data ke N8N_WEBHOOK_PENDING: ${N8N_WEBHOOK_PENDING}`); // Log URL
+                                    const payloadToSend = {
+                                        ...userData,
+                                        status: 'waiting', // Konfirmasi status baru untuk webhook
+                                        queueNumber: queueNumber, // Tambahkan nomor antrean yang dihitung
+                                        action: 'accepted' // Tambahkan parameter aksi
+                                    };
+                                    // Kirim payload dalam bentuk array
+                                    await axios.post(N8N_WEBHOOK_PENDING, [payloadToSend], {
+                                        headers: { 'Content-Type': 'application/json' }
+                                    });
+                                    console.log(`Data pengguna ID ${id} dengan nomor antrean ${queueNumber} dikirim ke N8N_WEBHOOK_PENDING.`);
+                                }
+
+                                showConfirmationModal("Pendaftaran berhasil diterima dan data dikirim ke webhook!", () => {});
+                                // Data akan dimuat ulang melalui event 'data_updated' dari socket.io secara otomatis
+                            } catch (error) {
+                                console.error("Error accepting registration and sending to webhook:", error);
+                                showConfirmationModal("Gagal menerima pendaftaran atau mengirim data ke webhook: " + (error.response?.data?.message || error.message), () => {});
+                            }
+                        }
+                    });
+                };
+
+                const rejectPendingRegistration = (id) => {
+                    showConfirmationModal("Apakah Anda yakin ingin menolak pendaftaran ini? Ini akan menghapusnya dari daftar tertunda.", async (confirmed) => {
+                        if (confirmed) {
+                            try {
+                                // 1. Ambil data pengguna sebelum memperbarui status
+                                const initialUserDataResponse = await axios.get(`${BASE_API_URL}/users/${id}`);
+                                let userData = initialUserDataResponse.data;
+
+                                // 2. Perbarui status di database Anda menjadi 'rejected'
+                                await axios.patch(`${BASE_API_URL}/users/${id}`, { status: 'rejected' });
+
+                                // 3. Kirim data pengguna ke webhook N8N dengan status dan aksi 'rejected'
+                                if (userData) {
+                                    console.log(`Mengirim data ke N8N_WEBHOOK_PENDING: ${N8N_WEBHOOK_PENDING}`);
+                                    const payloadToSend = {
+                                        ...userData,
+                                        status: 'rejected', // Konfirmasi status baru untuk webhook
+                                        action: 'rejected' // Tambahkan parameter aksi
+                                    };
+                                    // Kirim payload dalam bentuk array
+                                    await axios.post(N8N_WEBHOOK_PENDING, [payloadToSend], {
+                                        headers: { 'Content-Type': 'application/json' }
+                                    });
+                                    console.log(`Data pengguna ID ${id} ditolak dan dikirim ke N8N_WEBHOOK_PENDING.`);
+                                }
+
+                                showConfirmationModal("Pendaftaran berhasil ditolak!", () => {});
+                                // Data akan dimuat ulang melalui event 'data_updated' dari socket.io
+                            } catch (error) {
+                                console.error("Error rejecting registration:", error);
+                                showConfirmationModal("Gagal menolak pendaftaran: " + (error.response?.data?.message || error.message), () => {});
+                            }
+                        }
+                    });
+                };
+
+                const updatePendingRegistrationReg = async (id, newRegType) => {
+                    try {
+                        await axios.patch(`${BASE_API_URL}/users/${id}`, { reg: newRegType });
+                        console.log(`Registration type for ID ${id} updated to ${newRegType}`);
+                        // Data will be reloaded via socket.io 'data_updated' event
+                    }
+                    catch (error) {
+                        console.error("Error updating pending registration type:", error);
+                        showConfirmationModal("Gagal mengubah tipe registrasi: " + (error.response?.data?.message || error.message), () => {});
+                    }
+                };
+
+                const blastAllData = async () => {
+                    showConfirmationModal("Apakah Anda yakin ingin mengirim semua data ke webhook N8N?", async (confirmed) => {
+                        if (confirmed) {
+                            try {
+                                const response = await axios.get(`${BASE_API_URL}/users`);
+                                let usersData = response.data; // Use 'let' to allow modification
+
+                                // Calculate queueNumber for each 'waiting' user in the full data
+                                const waitingUsersInQueue = usersData.filter(u => u.status === 'waiting').sort((a, b) => a.id - b.id);
+                                usersData = usersData.map(user => {
+                                    if (user.status === 'waiting') {
+                                        const queueIndex = waitingUsersInQueue.findIndex(u => u.id === user.id);
+                                        return { ...user, queueNumber: queueIndex !== -1 ? queueIndex + 1 : null };
+                                    }
+                                    return user;
+                                });
+
+                                if (usersData.length === 0) {
+                                    showConfirmationModal("Tidak ada data untuk dikirim.", () => {});
+                                    return;
+                                }
+                                console.log(`Mengirim data ke N8N_WEBHOOK_ALL_DATA: ${N8N_WEBHOOK_ALL_DATA}`); // Log the URL
+                                await axios.post(N8N_WEBHOOK_ALL_DATA, usersData, { // usersData is already an array
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                                showConfirmationModal("Semua data berhasil dikirim ke webhook N8N!", () => {});
+                            } catch (error) {
+                                console.error("Error blasting data to N8N:", error);
+                                showConfirmationModal("Gagal mengirim data ke webhook N8N: " + (error.response?.data?.message || error.message), () => {});
+                            }
+                        }
+                    });
+                };
+
+                const blastWaitingData = async () => {
+                    showConfirmationModal("Apakah Anda yakin ingin mengirim data status 'waiting' ke webhook N8N?", async (confirmed) => {
+                        if (confirmed) {
+                            try {
+                                const response = await axios.get(`${BASE_API_URL}/users`);
+                                const allUsers = response.data;
+
+                                // Filter and sort all waiting users to get consistent queue numbers
+                                const waitingUsersInQueue = allUsers
+                                    .filter(user => user.status === 'waiting')
+                                    .sort((a, b) => a.id - b.id);
+
+                                // Map over waiting users to add queueNumber
+                                const waitingUsersDataWithQueue = waitingUsersInQueue.map((user, index) => ({
+                                    ...user,
+                                    queueNumber: index + 1 // Assign queue number based on sorted index
+                                }));
+
+                                if (waitingUsersDataWithQueue.length === 0) {
+                                    showConfirmationModal("Tidak ada data dengan status 'waiting' untuk dikirim.", () => {});
+                                    return;
+                                }
+                                console.log(`Mengirim data ke N8N_WEBHOOK_WAITING: ${N8N_WEBHOOK_WAITING}`); // Log the URL
+                                await axios.post(N8N_WEBHOOK_WAITING, waitingUsersDataWithQueue, { // waitingUsersDataWithQueue is already an array
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                                showConfirmationModal("Data 'waiting' berhasil dikirim ke webhook N8N!", () => {});
+                            } catch (error) {
+                                console.error("Error blasting waiting data to N8N:", error);
+                                showConfirmationModal("Gagal mengirim data 'waiting' ke webhook N8N: " + (error.response?.data?.message || error.message), () => {});
+                            }
+                        }
+                    });
+                };
+
+                const blastData = async (id) => {
+                    const webHookUrlData = N8N_WEBHOOK_DATA; // Use specific variable
+                    try {
+                        const response = await axios.get(`${BASE_API_URL}/users/${id}`);
+                        let userData = response.data; // Use 'let' to allow modification
+
+                        // If the user's status is 'waiting', calculate their queue number
+                        if (userData && userData.status === 'waiting') {
+                            const allUsersResponse = await axios.get(`${BASE_API_URL}/users`);
+                            const allUsers = allUsersResponse.data;
+                            const waitingUsersInQueue = allUsers.filter(u => u.status === 'waiting').sort((a, b) => a.id - b.id);
+                            const userIndexInQueue = waitingUsersInQueue.findIndex(u => u.id === userData.id);
+                            userData.queueNumber = userIndexInQueue !== -1 ? userIndexInQueue + 1 : null;
+                        }
+
+                        if (userData) {
+                            console.log(`Mengirim data ke N8N_WEBHOOK_DATA: ${webHookUrlData}`); // Log the URL
+                            // Kirim payload dalam bentuk array, meskipun hanya satu objek
+                            await axios.post(webHookUrlData, [userData], {
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                            showConfirmationModal("Data berhasil dikirim ke webhook N8N!", () => {});
+                        } else {
+                            console.warn("No user data found to send to n8n.");
+                        }
+                    } catch (error) {
+                        console.error("Error blasting data:", error);
+                        showConfirmationModal("Gagal mengirim data: " + (error.response?.data?.message || error.message), () => {});
+                    }
+                };
+
+                const handleLogout = () => {
+                    sessionStorage.removeItem('isLoggedIn');
+                    setIsLoggedIn(false);
+                    setCurrentPage('login');
+                };
+
+                return (
+                    <div className="max-w-8xl mx-auto bg-white p-6 md:p-8 rounded-lg shadow-xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 text-center md:text-left">Waiting List Manager</h1>
+                            <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-200 ease-in-out text-base">Logout</button>
+                        </div>
+                        <p className="text-gray-600 mb-6 text-center md:text-left text-sm sm:text-base">Kelola daftar tunggu Anda dengan mudah. Tambahkan, edit, dan hapus entri dengan cepat.</p>
+
+                        <div className="flex flex-col lg:flex-row gap-6 mb-8">
+                            <div className="lg:w-1/2 p-6 bg-gray-50 rounded-lg shadow-sm">
+                                <h2 className="text-lg font-semibold text-gray-700 mb-4">Tambah / Edit Antrean</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Nama"
+                                        className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        value={nama}
+                                        onChange={(e) => setNama(e.target.value)}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="08xxxxxx"
+                                        className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        value={nowa}
+                                        onChange={(e) => setNowa(e.target.value)}
+                                    />
+                                    <select
+                                        className="w-full p-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        value={regType}
+                                        onChange={(e) => setRegType(e.target.value)}
+                                    >
+                                        <option value="online">Online</option>
+                                        <option value="offline">Offline</option>
+                                    </select>
+                                </div>
+                                <button onClick={handleSaveUpdate} className={`w-full font-semibold py-2 px-4 rounded-md shadow-md transition duration-200 ease-in-out text-base ${editingId ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white`}>
+                                    {editingId ? 'Update' : 'Simpan'}
+                                </button>
+                            </div>
+
+                            <div className="lg:w-1/2 p-6 bg-purple-50 rounded-lg shadow-sm flex flex-col justify-center">
+                                <h2 className="text-lg font-semibold text-gray-700 mb-4">Aksi Blast</h2>
+                                <div className="flex flex-col gap-4">
+                                    <button onClick={blastAllData} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-200 ease-in-out text-base">Blast Semua Data ke Webhook</button>
+                                    <button onClick={blastWaitingData} className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-200 ease-in-out text-base">Blast Data Waiting ke Webhook</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                            <div className="lg:col-span-4">
+                                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-3 mt-8 text-center md:text-left">Pendaftaran Tertunda</h2>
+                                <p className="text-gray-600 mb-6 text-center md:text-left text-sm sm:text-base">Pendaftaran baru yang menunggu persetujuan admin.</p>
+                                <div className="overflow-x-auto rounded-lg shadow-md border border-gray-200">
+                                    <table className="min-w-full bg-white border-collapse">
+                                        <thead>
+                                            <tr className="bg-red-100 text-red-700 text-sm md:text-base">
+                                                <th className="px-4 py-3 text-left">Nama</th>
+                                                <th className="px-4 py-3 text-left">No WA</th>
+                                                <th className="px-4 py-3 text-left">Registrasi</th>
+                                                <th className="px-4 py-3 text-left">Waktu Reg.</th>
+                                                <th className="px-4 py-3 text-left">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="pendingData" className="divide-y divide-gray-200 text-sm">
+                                            {pendingUsers.length > 0 ? (
+                                                pendingUsers.map((user) => (
+                                                    <tr key={user.id} className="hover:bg-gray-50">
+                                                        <td className="px-4 py-2">{user.nama || '-'}</td>
+                                                        <td className="px-4 py-2">{maskPhoneNumber(user.nowa) || '-'}</td>
+                                                        <td className="px-4 py-2">
+                                                            <select
+                                                                className="p-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-sm"
+                                                                value={user.reg}
+                                                                onChange={(e) => updatePendingRegistrationReg(user.id, e.target.value)}
+                                                            >
+                                                                <option value="online">Online</option>
+                                                                <option value="offline">Offline</option>
+                                                            </select>
+                                                        </td>
+                                                        <td className="px-4 py-2">{formatDateTime(user.regTime)}</td>
+                                                        <td className="px-4 py-2 flex flex-row space-x-2 whitespace-nowrap">
+                                                            <button className="btn btn-success btn-icon-custom" onClick={() => acceptPendingRegistration(user.id)} title="Terima Pendaftaran">
+                                                                <i className="bi bi-check-circle-fill"></i>
+                                                            </button>
+                                                            <button className="btn btn-danger btn-icon-custom" onClick={() => rejectPendingRegistration(user.id)} title="Tolak Pendaftaran">
+                                                                <i className="bi bi-x-circle-fill"></i>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="5" className="px-4 py-4 text-center text-gray-500">Tidak ada pendaftaran tertunda.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="lg:col-span-8">
+                                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-3 mt-8 text-center md:text-left">Daftar Tunggu Aktif</h2>
+                                <p className="text-gray-600 mb-6 text-center md:text-left text-sm sm:text-base">Pengguna yang sudah disetujui dan berada dalam antrean.</p>
+                                <div className="overflow-x-auto rounded-lg shadow-md border border-gray-200">
+                                    <table className="min-w-full bg-white border-collapse">
+                                        <thead>
+                                            <tr className="bg-gray-100 text-gray-700 text-sm md:text-base">
+                                                <th className="px-4 py-3 text-left">Antrean</th>
+                                                <th className="px-4 py-3 text-left">Nama</th>
+                                                <th className="px-4 py-3 text-left">No WA</th>
+                                                <th className="px-4 py-3 text-left">Blast</th>
+                                                <th className="px-4 py-3 text-left">Status</th>
+                                                <th className="px-4 py-3 text-left">Registrasi</th>
+                                                <th className="px-4 py-3 text-left">Waktu Reg.</th>
+                                                <th className="px-4 py-3 text-left">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="data" className="divide-y divide-gray-200 text-sm">
+                                            {activeUsers.length > 0 ? (
+                                                activeUsers.map((user, index) => {
+                                                    // Hanya tetapkan nomor antrean jika statusnya 'waiting'
+                                                    const waitingUsersInQueue = activeUsers.filter(u => u.status === 'waiting');
+                                                    const antrianDisplay = user.status === 'waiting' ? waitingUsersInQueue.findIndex(u => u.id === user.id) + 1 : '';
+                                                    return (
+                                                        <tr key={user.id} className="hover:bg-gray-50">
+                                                            <td className="px-4 py-2">{antrianDisplay}</td>
+                                                            <td className="px-4 py-2">{user.nama || '-'}</td>
+                                                            <td className="px-4 py-2">{user.nowa || '-'}</td>
+                                                            <td className="px-4 py-2 whitespace-nowrap">
+                                                                <button className="btn btn-success btn-icon-custom me-2" onClick={() => blastData(user.id)} title="Kirim Pesan WhatsApp">
+                                                                    <i className="bi bi-whatsapp"></i>
+                                                                </button>
+                                                            </td>
+                                                            <td className="px-4 py-2">
+                                                                <select
+                                                                    className="p-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-sm"
+                                                                    value={user.status}
+                                                                    onChange={(e) => updateStatus(user.id, e.target.value)}
+                                                                >
+                                                                    <option value="waiting">Waiting</option>
+                                                                    <option value="play">Playing</option>
+                                                                    <option value="close">Closed</option>
+                                                                </select>
+                                                            </td>
+                                                            <td className="px-4 py-2">{user.reg}</td>
+                                                            <td className="px-4 py-2">{formatDateTime(user.regTime)}</td>
+                                                            <td className="px-4 py-2 flex flex-row space-x-2">
+                                                                <button className="btn btn-primary btn-icon-custom" onClick={() => editData(user)} title="Edit Data">
+                                                                    <i className="bi bi-pencil-square"></i>
+                                                                </button>
+                                                                <button className="btn btn-danger btn-icon-custom" onClick={() => deleteData(user.id)} title="Hapus Data">
+                                                                    <i className="bi bi-trash"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="8" className="px-4 py-4 text-center text-gray-500">Data Tidak Ditemukan</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            // 3. User Dashboard Page (Public View)
+            const UserDashboardPage = () => {
+                const [queueData, setQueueData] = useState([]);
+
+                const loadQueueData = useCallback(async () => {
+                    try {
+                        const response = await axios.get(`${BASE_API_URL}/users`);
+                        const users = response.data;
+
+                        // Saring pengguna admin dan urutkan untuk tampilan publik
+                        const filteredUsers = users.filter(user => user.status !== 'admin');
+                        const waitingUsers = filteredUsers.filter(user => user.status === 'waiting');
+                        waitingUsers.sort((a, b) => a.id - b.id);
+
+                        const otherUsers = filteredUsers.filter(user => user.status !== 'waiting' && user.status !== 'pending' && user.status !== 'rejected').sort((a, b) => a.id - b.id);
+                        const sortedUsers = [...waitingUsers, ...otherUsers];
+
+                        setQueueData(sortedUsers);
+                    } catch (error) {
+                        console.error("Error fetching queue data:", error);
+                        showConfirmationModal(`Gagal memuat daftar antrean: ${error.response?.data?.message || error.message}. Pastikan Express.js server berjalan pada ${BASE_API_URL}.`, () => {});
+                    }
+                }, [showConfirmationModal]);
+
+                useEffect(() => {
+                    loadQueueData();
+                    socket.on('data_updated', () => {
+                        console.log('Menerima notifikasi data diperbarui dari server. Memuat ulang data antrean.');
+                        loadQueueData();
+                    });
+
+                    return () => {
+                        socket.off('data_updated');
+                    };
+                }, [loadQueueData]);
+
+                return (
+                    <div className="max-w-3xl mx-auto bg-white p-6 md:p-8 rounded-lg shadow-xl w-full">
+                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 text-center">Daftar Antrean</h1>
+                        <p className="text-gray-600 mb-6 text-center text-sm sm:text-base">Lihat status antrean dan informasi penting lainnya.</p>
+
+                        <div className="overflow-x-auto rounded-lg shadow-md border border-gray-200">
+                            <table className="min-w-full bg-white border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-100 text-gray-700 text-sm md:text-base">
+                                        <th className="px-4 py-3 text-left">Antrean</th>
+                                        <th className="px-4 py-3 text-left">Nama</th>
+                                        <th className="px-4 py-3 text-left">No WA</th>
+                                        <th className="px-4 py-3 text-left">Status</th>
+                                        <th className="px-4 py-3 text-left">Waktu Reg.</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="queueData" className="divide-y divide-gray-200 text-sm">
+                                    {queueData.length > 0 ? (
+                                        queueData.map((user, index) => {
+                                            const antrianDisplay = user.status === 'waiting' ? index + 1 : '';
+                                            return (
+                                                <tr key={user.id} className="hover:bg-gray-50">
+                                                    <td className="px-4 py-2">{antrianDisplay}</td>
+                                                    <td className="px-4 py-2">{user.nama || '-'}</td>
+                                                    <td className="px-4 py-2">{maskPhoneNumber(user.nowa) || '-'}</td>
+                                                    <td className="px-4 py-2 capitalize">{user.status || '-'}</td>
+                                                    <td className="px-4 py-2">{formatDateTime(user.regTime)}</td>
+                                                </tr>
+                                            );
+                                        })
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="5" className="px-4 py-4 text-center text-gray-500">Saat ini tidak ada antrean.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="text-center mt-4">
+                            <button onClick={() => setCurrentPage('publicRegister')} className="text-blue-600 hover:underline text-sm">Kembali ke Pendaftaran</button>
+                        </div>
+                    </div>
+                );
+            };
+
+            // 4. Public Registration Page
+            const PublicRegistrationPage = () => {
+                const [regName, setRegName] = useState('');
+                const [regNowa, setRegNowa] = useState('');
+
+                const handleRegisterUser = async () => {
+                    if (!regName || !regNowa) {
+                        showConfirmationModal("Nama dan Nomor WhatsApp tidak boleh kosong!", () => {});
+                        return;
+                    }
+
+                    let formattedNowa = regNowa.trim();
+                    if (!formattedNowa.startsWith('08') && !formattedNowa.startsWith('628')) {
+                        showConfirmationModal("Nomor WhatsApp harus diawali dengan '08' atau '628'.", () => {});
+                        return;
+                    }
+                    if (formattedNowa.startsWith('08')) {
+                        formattedNowa = '62' + formattedNowa.substring(1); // Mengubah 08 menjadi 628
+                    }
+
+                    try {
+                        await axios.post(`${BASE_API_URL}/users`, {
+                            nama: regName,
+                            nowa: formattedNowa,
+                            status: 'pending',
+                            reg: 'online',
+                            regTime: new Date().toISOString()
+                        });
+                        showConfirmationModal("Anda berhasil terdaftar! Menunggu persetujuan admin.", () => {
+                            setRegName('');
+                            setRegNowa('');
+                        });
+                        socket.emit('new_registration', { message: 'Pengguna baru terdaftar.' });
+                    } catch (error) {
+                        console.error("Error registering user:", error);
+                        showConfirmationModal("Gagal mendaftar: " + (error.response?.data?.message || error.message) + `. Pastikan Express.js server berjalan pada ${BASE_API_URL.replace('/api', '')}.`, () => {});
+                    }
+                };
+
+                return (
+                    <div className="max-w-md mx-auto bg-white p-6 md:p-8 rounded-lg shadow-xl w-full">
+                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 text-center">Daftar Antrean</h1>
+                        <p className="text-gray-600 mb-6 text-center text-sm sm:text-base">Masukkan nama dan nomor WhatsApp Anda untuk bergabung dalam antrean.</p>
+
+                        <div className="mb-6 p-6 bg-blue-50 rounded-lg shadow-inner">
+                            <div className="grid grid-cols-1 gap-4 mb-4">
+                                <input
+                                    type="text"
+                                    placeholder="Nama Anda"
+                                    className="p-3 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                                    value={regName}
+                                    onChange={(e) => setRegName(e.target.value)}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Nomor WA (08xxxxxxxxxx)"
+                                    className="p-3 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                                    value={regNowa}
+                                    onChange={(e) => setNowa(e.target.value)}
+                                />
+                            </div>
+                            <button onClick={handleRegisterUser} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-200 ease-in-out text-base">Kirim</button>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
+                            <button onClick={() => setCurrentPage('userDashboard')} className="w-full sm:w-auto text-center bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-6 rounded-md shadow-md transition duration-200 ease-in-out text-base inline-flex items-center justify-center">
+                                <i className="bi bi-bar-chart-fill mr-2"></i> Dashboard
+                            </button>
+                            <button onClick={() => setCurrentPage('login')} className="w-full sm:w-auto text-center bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-6 rounded-md shadow-md transition duration-200 ease-in-out text-base inline-flex items-center justify-center">
+                                Login Admin
+                            </button>
+                        </div>
+                    </div>
+                );
+            };
+
+            // Main rendering logic based on currentPage state
+            const renderPage = () => {
+                switch (currentPage) {
+                    case 'login':
+                        return <LoginPage />;
+                    case 'admin':
+                        return isLoggedIn ? <AdminDashboardPage /> : <LoginPage />;
+                    case 'userDashboard':
+                        return <UserDashboardPage />;
+                    case 'publicRegister':
+                        return <PublicRegistrationPage />;
+                    default:
+                        return <PublicRegistrationPage />; // Default to public registration
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center py-8">
+                    {/* Tailwind CSS Font Inter */}
+                    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+                    {/* Bootstrap Icons CSS for general icons (e.g., WhatsApp, edit, trash) */}
+                    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet" />
+                    
+                    {/* CSS for login form, modal, and custom button icons */}
+                    <style>
+                        {`
+                        body {
+                            font-family: 'Inter', sans-serif;
+                            background-color: #f3f4f6;
+                        }
+                        .login-container {
+                            max-width: 400px;
+                            width: 100%;
+                            background-color: #ffffff;
+                            padding: 2.5rem;
+                            border-radius: 0.75rem;
+                            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                        }
+                        .input-field {
+                            padding: 0.75rem 1rem;
+                            border: 1px solid #d1d5db;
+                            border-radius: 0.375rem;
+                            width: 100%;
+                            font-size: 1rem;
+                            line-height: 1.5;
+                            transition: all 0.2s ease-in-out;
+                        }
+                        .input-field:focus {
+                            outline: none;
+                            border-color: #3b82f6;
+                            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+                        }
+                        .btn-primary-login {
+                            background-color: #2563eb;
+                            color: #ffffff;
+                            font-weight: 600;
+                            padding: 0.75rem 1.5rem;
+                            border-radius: 0.5rem;
+                            width: 100%;
+                            transition: background-color 0.2s ease-in-out;
+                        }
+                        .btn-primary-login:hover {
+                            background-color: #1d4ed8;
+                        }
+                        .error-message {
+                            color: #ef4444;
+                            font-size: 0.875rem;
+                            margin-top: 0.5rem;
+                        }
+                        /* Custom styles for the confirmation modal, ensuring responsiveness */
+                        .modal {
+                            display: none !important;
+                            position: fixed;
+                            z-index: 1000;
+                            left: 0;
+                            top: 0;
+                            width: 100%;
+                            height: 100%;
+                            overflow: auto;
+                            background-color: rgba(0,0,0,0.4);
+                            justify-content: center;
+                            align-items: center;
+                            padding: 1rem;
+                        }
+                        .modal.active {
+                            display: flex !important;
+                        }
+                        .modal-content {
+                            background-color: #fefefe;
+                            padding: 1.5rem;
+                            border: 1px solid #d1d5db;
+                            width: 95%;
+                            max-width: 500px;
+                            border-radius: 0.5rem;
+                            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                            text-align: center;
+                        }
+                        .modal-content button {
+                            width: 100%;
+                            padding: 0.75rem 1rem;
+                            font-size: 1rem;
+                        }
+                        @media (min-width: 640px) {
+                            .modal-content button {
+                                width: auto;
+                            }
+                        }
+                        /* CSS Kustom untuk Tombol Ikon */
+                        .btn-icon-custom {
+                            background-color: transparent !important;
+                            border: 1px solid var(--bs-btn-border-color, #ccc);
+                            transition: all 0.3s ease;
+                            border-radius: 0.375rem;
+                            padding: 0.5rem 0.75rem;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            line-height: 1;
+                            color: var(--bs-btn-color, #212529);
+                        }
+                        .btn-icon-custom i {
+                            font-size: 1.15rem;
+                        }
+                        .btn-icon-custom:hover {
+                            border-color: var(--bs-btn-hover-border-color, #0d6efd) !important;
+                            box-shadow: 0 0 0 0.25rem var(--bs-btn-focus-shadow-rgb, rgba(13, 110, 253, 0.25));
+                            background-color: var(--bs-btn-hover-bg, rgba(0, 0, 0, 0.08)) !important;
+                        }
+                        .btn-icon-custom.btn-success i { color: #198754; }
+                        .btn-icon-custom.btn-primary i { color: #0d6efd; }
+                        .btn-icon-custom.btn-danger i { color: #dc3545; }
+                        .btn-icon-custom.btn-success { border-color: #198754; }
+                        .btn-icon-custom.btn-primary { border-color: #0d6efd; }
+                        .btn-icon-custom.btn-danger { border-color: #dc3545; }
+
+                        /* Overrides/Enhancements for table borders to ensure consistency with Tailwind's border utilities */
+                        table.min-w-full th,
+                        table.min-w-full td {
+                            border-color: #e5e7eb; /* Tailwind's default border-gray-200 color */
+                            padding: 0.75rem 1rem; /* Tailwind's default px-4 py-2 converted to rem */
+                        }
+                        
+                        /* Ensure table head background is consistent */
+                        table.min-w-full thead tr {
+                            background-color: #f9fafb; /* Tailwind's default bg-gray-50 slightly adjusted */
+                        }
+                        `}
+                    </style>
+
+                    {renderPage()}
+
+                    {/* Reusable Confirmation Modal */}
+                    <div id="confirmationModal" className={`modal ${showModal ? 'active' : ''}`}>
+                        <div className="modal-content">
+                            <p className="text-lg font-medium mb-4">{modalMessage}</p>
+                            <div className="flex flex-col sm:flex-row justify-center gap-4">
+                                <button
+                                    className="bg-red-500 hover:bg-red-600 text-white font-bold rounded-md transition duration-200 ease-in-out"
+                                    onClick={() => { modalCallback && modalCallback(true); hideConfirmationModal(); }}
+                                >
+                                    Ya
+                                </button>
+                                <button
+                                    className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold rounded-md transition duration-200 ease-in-out"
+                                    onClick={() => { modalCallback && modalCallback(false); hideConfirmationModal(); }}
+                                >
+                                    Batal
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render komponen App ke dalam div dengan id "root"
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
