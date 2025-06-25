@@ -26,7 +26,7 @@
         const io = window.io;     // Use window.io because it's loaded from CDN
 
         // Base URL for your Express.js backend server
-        const BASE_API_URL = 'http://localhost:3001/api';
+        const BASE_API_URL = '/api';
         // Specific N8N Webhook URLs
         const N8N_WEBHOOK_ALL_DATA = 'https://n8n.oodana.my.id/webhook/all-data'; // Replace with your actual N8N webhook URL
         const N8N_WEBHOOK_WAITING = 'https://n8n.oodana.my.id/webhook/waiting';   // Replace with your actual N8N webhook URL
@@ -34,7 +34,7 @@
         const N8N_WEBHOOK_PENDING = 'https://n8n.oodana.my.id/webhook/pending'; // Add this for pending registration webhook
 
         // Initialize Socket.io connection (outside component to prevent re-creation on re-renders)
-        const socket = io('http://localhost:3001');
+        const socket = io();
 
         function App() {
             // State to manage current page
@@ -225,6 +225,12 @@
                         return;
                     }
 
+                    // Ubah nomor yang diawali 08 menjadi 62
+                    let formattedNowa = nowa.trim();
+                    if (formattedNowa.startsWith('08')) {
+                        formattedNowa = '62' + formattedNowa.substring(1);
+                    }
+
                     try {
                         if (editingId) {
                             // For PUT, fetch existing user data to retain status and regTime
@@ -232,19 +238,20 @@
                             await axios.put(`${BASE_API_URL}/users/${editingId}`, {
                                 ...existingUser, // Spread existing data
                                 nama: nama,
-                                nowa: nowa,
+                                nowa: formattedNowa,
                                 reg: regType
                             });
                             showConfirmationModal("Data berhasil diperbarui!", () => {});
                         } else {
+                            // Masukkan ke tabel Pendaftaran Tertunda (status: 'pending')
                             await axios.post(`${BASE_API_URL}/users`, {
                                 nama: nama,
-                                nowa: nowa,
-                                status: 'waiting', // Admin manually adding implies 'waiting'
+                                nowa: formattedNowa,
+                                status: 'pending', // Pendaftaran Tertunda
                                 reg: regType,
                                 regTime: new Date().toISOString()
                             });
-                            showConfirmationModal("Data berhasil disimpan!", () => {});
+                            showConfirmationModal("Data berhasil disimpan ke Pendaftaran Tertunda!", () => {});
                         }
                         clearForm();
                         // Data will be reloaded via socket.io 'data_updated' event
@@ -803,7 +810,7 @@
                                     placeholder="Nomor WA (08xxxxxxxxxx)"
                                     className="p-3 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
                                     value={regNowa}
-                                    onChange={(e) => setNowa(e.target.value)}
+                                    onChange={(e) => setRegNowa(e.target.value)}
                                 />
                             </div>
                             <button onClick={handleRegisterUser} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-200 ease-in-out text-base">Kirim</button>

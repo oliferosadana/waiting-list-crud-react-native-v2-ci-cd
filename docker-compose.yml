@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: "@Admin2w6y1q1q" # Ganti dengan password ROOT yang kuat
+      MYSQL_DATABASE: waiting_list_db
+      MYSQL_USER: superuser
+      MYSQL_PASSWORD: "@Admin2w6y1q1q" # Ganti dengan password user database Anda
+    volumes:
+      - mysql_data:/var/lib/mysql # Persistenkan data MySQL menggunakan named volume
+    # ports:
+    #   - "3306:3306" # Uncomment jika Anda perlu akses MySQL langsung dari host (TIDAK disarankan untuk produksi)
+    networks:
+      - app_network
+    healthcheck: # <-- Health check untuk memastikan MySQL siap
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p@Admin2w6y1q1q"] # Sesuaikan password root
+      interval: 10s # Periksa setiap 10 detik
+      timeout: 5s   # Tunggu 5 detik untuk respons
+      retries: 5    # Coba 5 kali sebelum dianggap gagal
+      start_period: 30s # Beri MySQL 30 detik untuk booting awal
+
+  backend_express_app:
+    build:
+      context: ./backend # Konteks build adalah folder 'backend' Anda
+      dockerfile: Dockerfile # Gunakan Dockerfile di dalam folder 'backend'
+    container_name: backend_express_app_container
+    ports:
+      - "3003:3003" # Port aplikasi Express Anda (sesuaikan jika berbeda)
+    depends_on:
+      mysql:
+        condition: service_healthy # <-- Akan menunggu MySQL sehat sebelum memulai
+    environment:
+      DB_HOST: mysql           # Nama service MySQL dalam Docker Compose (penting!)
+      DB_USER: superuser
+      DB_PASSWORD: "@Admin2w6y1q1q"
+      DB_NAME: waiting_list_db
+      PORT: 3003 # Pastikan ini cocok dengan PORT di server.js Anda
+      ADMIN_USERNAME: admin # Sesuaikan dengan username admin Anda
+      ADMIN_PASSWORD: adminpassword # Sesuaikan dengan password admin Anda
+    networks:
+      - app_network
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx_proxy
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro # Mount konfigurasi Nginx Anda
+      - ./index.html:/usr/share/nginx/html/index.html:ro # Mount index.html ke root Nginx
+    ports:
+      - "8080:80" # Akses Nginx di host melalui port 8080
+      - "4430:443" # Opsional: Port HTTPS di host melalui 4430
+    depends_on:
+      - backend_express_app # Pastikan Express berjalan sebelum Nginx
+    networks:
+      - app_network
+
+volumes:
+  mysql_data: # Definisi named volume untuk persistensi data MySQL
+
+networks:
+  app_network:
+    driver: bridge # Definisi jaringan bridge untuk komunikasi antar kontainer
