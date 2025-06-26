@@ -31,26 +31,61 @@ jobs:
         platforms: linux/amd64 # Pastikan platform yang benar
 
   deploy:
-    runs-on: ubuntu-latest # Atau server VPS Anda
-    needs: build_and_push # Pastikan tahap build dan push selesai
-    environment: production # Opsional: Lingkungan deployment
+    runs-on: ubuntu-latest # Runner GitHub yang akan terhubung ke VPS Anda
+    needs: build_and_push # Pastikan job ini hanya berjalan setelah build_and_push berhasil
+    environment: production # Opsional: Untuk pelacakan lingkungan di GitHub
+
+    env:
+      APP_PATH: ${{ secrets.APP_PATH }} # Path absolut di VPS Anda, diambil dari GitHub Secrets
+      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }} # Username Docker Hub dari secrets
 
     steps:
-    - name: Checkout code (optional, if you pull docker-compose.yml directly)
+    - name: Checkout code (to get docker-compose.yml, nginx/, index.html)
       uses: actions/checkout@v4
 
-    - name: Login to Docker Hub (on deployment server)
-      uses: docker/login-action@v3
+    - name: Set up SSH agent
+      # Ini adalah action yang menambahkan SSH private key ke SSH agent di runner GitHub
+      # Sehingga perintah 'ssh' dan 'scp' dapat digunakan.
+      uses: webfactory/ssh-agent@v0.9.0
       with:
-        username: ${{ secrets.DOCKER_HUB_USERNAME }}
-        password: ${{ secrets.DOCKER_HUB_TOKEN }}
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-    - name: Pull and run Docker Compose stack
+    - name: Add VPS to known_hosts
+      # Penting untuk keamanan dan agar tidak ada prompt konfirmasi SSH pertama kali
       run: |
-        # Navigasi ke direktori tempat docker-compose.yml Anda
-        # Misalnya, jika Anda punya repo di /home/user/my-app
-        cd /home/superuser/projectApp/waiting-list-crud-react-native-v2
-        # Tarik image terbaru dan jalankan ulang stack.
-        docker-compose down # Hentikan kontainer lama jika ada
-        docker-compose pull # Tarik image terbaru dari Docker Hub
-        docker-compose up -d --remove-orphans # Jalankan kontainer baru
+        mkdir -p ~/.ssh
+        ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+        chmod 600 ~/.ssh/known_hosts
+
+    - name: Copy deployment files to VPS
+      # Menyalin file-file yang diperlukan dari runner GitHub ke VPS Anda via SCP
+      # docker-compose.yml, folder nginx, dan index.html akan disalin ke ${APP_PATH} di VPS
+      run: |
+        scp -r docker-compose.yml nginx/ index.html ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}:${{ env.APP_PATH }}
+
+    - name: Deploy Docker Compose stack on VPS
+      # Menjalankan perintah di VPS Anda via SSH
+      run: |
+        ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} << 'EOF'
+          # Perintah-perintah ini akan dieksekusi di VPS
+          cd ${{ env.APP_PATH }} # Pindah ke direktori aplikasi di VPS Anda
+
+          # Set environment variable DOCKER_HUB_USERNAME di dalam sesi SSH
+          export DOCKER_HUB_USERNAME="${{ env.DOCKER_HUB_USERNAME }}"
+
+          # Login ke Docker Hub di VPS agar bisa menarik image
+          echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u "${{ env.DOCKER_HUB_USERNAME }}" --password-stdin
+
+          echo "Stopping existing containers..."
+          docker compose down || true # Hentikan kontainer lama, '|| true' agar tidak error jika tidak ada
+
+          echo "Pulling latest images..."
+          docker compose pull # Tarik image terbaru untuk semua layanan
+
+          echo "Starting new containers..."
+          docker compose up -d --remove-orphans # Jalankan kontainer baru di background
+
+          echo "Docker Compose deployment complete."
+          docker compose ps # Tampilkan status kontainer yang berjalan
+          docker system prune -f # Bersihkan image dan volume yang tidak terpakai
+        EOF
