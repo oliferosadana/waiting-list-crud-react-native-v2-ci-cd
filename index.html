@@ -26,8 +26,8 @@
         const io = window.io;     // Use window.io because it's loaded from CDN
 
         // Base URL for your Express.js backend server
-        const BASE_API_URL = '/api'; 
-        // const BASE_API_URL = 'http://localhost:3003/api'; 
+        // const BASE_API_URL = '/api'; 
+        const BASE_API_URL = 'http://localhost:3003/api'; 
         // Specific N8N Webhook URLs
         const N8N_WEBHOOK_ALL_DATA = 'https://n8n.oodana.my.id/webhook/all-data'; // Replace with your actual N8N webhook URL
         const N8N_WEBHOOK_WAITING = 'https://n8n.oodana.my.id/webhook/waiting';   // Replace with your actual N8N webhook URL
@@ -35,8 +35,8 @@
         const N8N_WEBHOOK_PENDING = 'https://n8n.oodana.my.id/webhook/pending'; // Add this for pending registration webhook
 
         // Initialize Socket.io connection (outside component to prevent re-creation on re-renders)
-        const socket = io();
-        // const socket = io('http://localhost:3003');
+        // const socket = io();
+        const socket = io('http://localhost:3003');
 
         function App() {
             // State to manage current page
