@@ -50,7 +50,7 @@ jobs:
         # Navigasi ke direktori tempat docker-compose.yml Anda
         # Misalnya, jika Anda punya repo di /home/user/my-app
         cd /home/superuser/projectApp/waiting-list-crud-react-native-v2
-        # Tarik image terbaru dan jalankan ulang stack
+        # Tarik image terbaru dan jalankan ulang stack.
         docker-compose down # Hentikan kontainer lama jika ada
         docker-compose pull # Tarik image terbaru dari Docker Hub
         docker-compose up -d --remove-orphans # Jalankan kontainer baru
