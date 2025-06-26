@@ -26,8 +26,8 @@ const PORT = process.env.PORT || 3003;
 // Catatan: Untuk produksi, jangan berikan nilai default yang sensitif di sini.
 // Pastikan variabel lingkungan ini diatur di lingkungan deployment (misalnya di docker-compose.yml).
 const DB_HOST = process.env.DB_HOST || 'localhost'; // Akan menjadi 'mysql' di Docker Compose
-const DB_USER = process.env.DB_USER || 'superuser';
-const DB_PASSWORD = process.env.DB_PASSWORD || '@Admin2w6y1q1q'; // Ganti dengan default yang aman atau kosongkan
+const DB_USER = process.env.DB_USER || 'root';
+const DB_PASSWORD = process.env.DB_PASSWORD || ''; // Ganti dengan default yang aman atau kosongkan
 const DB_NAME = process.env.DB_NAME || 'waiting_list_db';
 
 // Variabel Admin dari Variabel Lingkungan
