@@ -12,6 +12,9 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions: # Tambahkan bagian ini
+      contents: read
+      packages: write # Penting: Berikan izin tulis untuk packages
     
     steps:
       - name: Checkout Repository
