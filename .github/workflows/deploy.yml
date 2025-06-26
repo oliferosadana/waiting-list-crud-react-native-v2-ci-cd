@@ -1,65 +1,56 @@
-name: CI/CD for Node.js Docker App on VPS
+name: CI/CD Pipeline
 
 on:
   push:
     branches:
-      - main # Ganti dengan nama branch utama Anda
-
-env:
-  # Nama image Docker untuk backend Anda (sesuaikan dengan username Docker Hub Anda)
-  DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_HUB_USERNAME }}/backend_express_app 
+      - main # Trigger pipeline saat ada push ke branch main
 
 jobs:
-  build-and-deploy:
+  build_and_push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      # permissions.packages: write tidak lagi diperlukan jika push ke Docker Hub
-      # tetapi tidak ada salahnya tetap ada jika Anda juga menggunakan GHCR untuk hal lain
-      # packages: write 
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub # <<< Perubahan di sini
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }} # Menggunakan secret Docker Hub Username
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}   # Menggunakan secret Docker Hub Token
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_TOKEN }} # Token akses Docker Hub Anda
 
-      - name: Build and Push Backend Docker Image
-        id: build-image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: true
-          # Tag image dengan nama Docker Hub Anda
-          tags: ${{ env.DOCKER_IMAGE_NAME }}:latest 
-          # Atau dengan versi spesifik:
-          # tags: ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+    - name: Build and push backend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend # Lokasi Dockerfile Anda (relative ke root repo)
+        push: true
+        tags: ${{ secrets.DOCKER_HUB_USERNAME }}/backend_express_app:latest
+        platforms: linux/amd64 # Pastikan platform yang benar
 
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: 22
-          script: |
-            cd /home/user/my-app/
+  deploy:
+    runs-on: self-hosted # Atau server VPS Anda
+    needs: build_and_push # Pastikan tahap build dan push selesai
+    environment: production # Opsional: Lingkungan deployment
 
-            # Login ke Docker Hub di VPS
-            echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+    steps:
+    - name: Checkout code (optional, if you pull docker-compose.yml directly)
+      uses: actions/checkout@v4
 
-            # Pull image backend terbaru dari Docker Hub
-            docker pull ${{ env.DOCKER_IMAGE_NAME }}:latest
+    - name: Login to Docker Hub (on deployment server)
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-            docker-compose down || true 
-            docker-compose up -d --build 
-
-            echo "Deployment complete!"
+    - name: Pull and run Docker Compose stack
+      run: |
+        # Navigasi ke direktori tempat docker-compose.yml Anda
+        # Misalnya, jika Anda punya repo di /home/user/my-app
+        cd /home/superuser/projectApp/waiting-list-crud-react-native-v2
+        # Tarik image terbaru dan jalankan ulang stack
+        docker-compose down # Hentikan kontainer lama jika ada
+        docker-compose pull # Tarik image terbaru dari Docker Hub
+        docker-compose up -d --remove-orphans # Jalankan kontainer baru
