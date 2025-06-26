@@ -45,7 +45,7 @@ jobs:
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.VPS_HOST }}        # IP Address atau Domain VPS Anda
+          host: ${{ secrets.VPS_HOST }}        # IP Address atau Domain VPS Andaa
           username: ${{ secrets.VPS_USERNAME }}    # Username SSH di VPS Anda
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}  # Private SSH Key Anda (disimpan di GitHub Secrets)
           port: 22                             # Port SSH (default 22)
