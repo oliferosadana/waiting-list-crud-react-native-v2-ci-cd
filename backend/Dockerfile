@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copy package.json dan package-lock.json terlebih dahulu untuk mengoptimalkan layer cache
 # Karena Dockerfile ini ada di dalam folder 'backend', dan context build akan diatur ke 'backend'
-# Maka, perintah COPY akan relatif terhadap folder 'backend' itu sendiri.
+# Maka, perintah COPY akan relatif terhadap folder 'backend' itu sendiri./
 COPY package*.json ./
 
 # Install dependencies
