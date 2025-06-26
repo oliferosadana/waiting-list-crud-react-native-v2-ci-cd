@@ -21,7 +21,7 @@ services:
       start_period: 30s
 
   backend_express_app:
-    image: ${{ secrets.DOCKER_HUB_USERNAME }}/backend_express_app:latest # Ini akan ditarik dari Docker Hub
+    image: ${DOCKER_HUB_USERNAME}/backend_express_app:latest # Ganti ini!
     container_name: backend_express_app_container
     ports:
       - "3003:3003"
