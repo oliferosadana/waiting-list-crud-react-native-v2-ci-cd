@@ -1,0 +1,83 @@
+name: CI/CD for Node.js Docker App on VPS
+
+on:
+  push:
+    branches:
+      - main # Ganti dengan nama branch utama Anda (misalnya, 'master' atau 'develop')
+
+env:
+  # Nama image Docker untuk backend Anda
+  DOCKER_IMAGE_NAME: ${{ github.repository }}/backend_express_app
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # Token ini memiliki izin untuk push ke GHCR untuk repository Anda
+          password: ${{ secrets.GITHUB_TOKEN }} 
+
+      - name: Build and Push Backend Docker Image
+        id: build-image # Tambahkan ID untuk referensi di langkah selanjutnya
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend # Path ke Dockerfile Anda
+          file: ./backend/Dockerfile
+          push: true
+          tags: ghcr.io/${{ env.DOCKER_IMAGE_NAME }}:latest # Tag image dengan latest
+          # Untuk tag versi spesifik (opsional):
+          # tags: ghcr.io/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}        # IP Address atau Domain VPS Anda
+          username: ${{ secrets.VPS_USERNAME }}    # Username SSH di VPS Anda
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}  # Private SSH Key Anda (disimpan di GitHub Secrets)
+          port: 22                             # Port SSH (default 22)
+          script: |
+            # Pindah ke direktori aplikasi di VPS
+            cd /home/user/my-app/ # Ganti dengan path direktori aplikasi Anda di VPS
+
+            # Login ke GitHub Container Registry di VPS
+            # GITHUB_TOKEN hanya berlaku di Actions runner, jadi kita perlu menggunakan Personal Access Token (PAT)
+            # Atau, lebih baik, gunakan GITHUB_TOKEN yang di-generate oleh Actions (jika VPS bisa diatur)
+            # Untuk skenario VPS, lebih aman menggunakan Personal Access Token (PAT)
+            # yang memiliki scope 'read:packages' dan 'write:packages' jika ingin menarik private packages.
+            # Atau, untuk public packages, cukup `docker login ghcr.io -u YOUR_GITHUB_USERNAME -p YOUR_PAT`
+            # Untuk kasus ini, karena kita push ke public GHCR, mungkin tidak perlu login di VPS
+            # jika image backend_express_app di-push ke public GHCR.
+            # Jika image private, Anda perlu PAT dengan scope 'read:packages'
+            
+            # Mari kita asumsikan image GHCR Anda adalah private, sehingga perlu login:
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} --password-stdin
+            
+            # Pull image backend terbaru dari GHCR
+            docker pull ghcr.io/${{ env.DOCKER_IMAGE_NAME }}:latest
+
+            # Stop dan hapus container yang sedang berjalan
+            docker-compose down || true # '|| true' untuk mencegah error jika container belum ada
+
+            # Pastikan konfigurasi Nginx dan index.html ada di VPS
+            # Jika Anda tidak sync folder `nginx` dan `index.html` dari repo ke VPS,
+            # pastikan mereka sudah ada di VPS sebelum deployment.
+            # Jika Anda ingin sync mereka, gunakan rsync atau scp di langkah ini atau langkah terpisah.
+            # Contoh:
+            # rsync -avzh --delete /home/runner/work/your-repo/your-repo/nginx/ /home/user/my-app/nginx/
+            # rsync -avzh --delete /home/runner/work/your-repo/your-repo/index.html /home/user/my-app/index.html
+
+            # Jalankan Docker Compose (ini akan menggunakan image terbaru yang di-pull)
+            docker-compose up -d --build # --build di sini akan memastikan backend image dibuat ulang jika perlu
+
+            echo "Deployment complete!"

@@ -23,9 +23,10 @@ services:
       start_period: 30s # Beri MySQL 30 detik untuk booting awal
 
   backend_express_app:
-    build:
-      context: ./backend # Konteks build adalah folder 'backend' Anda
-      dockerfile: Dockerfile # Gunakan Dockerfile di dalam folder 'backend'
+    # build:
+    #   context: ./backend # Konteks build adalah folder 'backend' Anda
+    #   dockerfile: Dockerfile # Gunakan Dockerfile di dalam folder 'backend'
+    image: ghcr.io/oliferosadana/waiting-list-crud-react-native-v2-ci-cd/backend_express_app:latest # Tambahkan ini
     container_name: backend_express_app_container
     ports:
       - "3003:3003" # Port aplikasi Express Anda (sesuaikan jika berbeda)
