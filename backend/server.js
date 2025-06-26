@@ -238,3 +238,13 @@ initializeDatabase().then(() => {
 }).catch(error => {
     console.error('Gagal memulai server karena error database:', error);
 });
+
+
+//endpoint health check
+app.get('/health', (req, res) => {
+    res.json({ message: 'Server is running' });
+});
+
+
+
+
