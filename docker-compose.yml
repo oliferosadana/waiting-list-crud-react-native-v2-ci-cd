@@ -23,27 +23,23 @@ services:
       start_period: 30s # Beri MySQL 30 detik untuk booting awal
 
   backend_express_app:
-    # build:
-    #   context: ./backend # Konteks build adalah folder 'backend' Anda
-    #   dockerfile: Dockerfile # Gunakan Dockerfile di dalam folder 'backend'
-    image: ghcr.io/oliferosadana/waiting-list-crud-react-native-v2-ci-cd/backend_express_app:latest # Tambahkan ini
+    image: ${{ secrets.DOCKER_HUB_USERNAME }}/backend_express_app:latest # Ganti ini
     container_name: backend_express_app_container
     ports:
-      - "3003:3003" # Port aplikasi Express Anda (sesuaikan jika berbeda)
+      - "3003:3003"
     depends_on:
       mysql:
-        condition: service_healthy # <-- Akan menunggu MySQL sehat sebelum memulai
+        condition: service_healthy
     environment:
-      DB_HOST: mysql           # Nama service MySQL dalam Docker Compose (penting!)
+      DB_HOST: mysql
       DB_USER: superuser
       DB_PASSWORD: "@Admin2w6y1q1q"
       DB_NAME: waiting_list_db
-      PORT: 3003 # Pastikan ini cocok dengan PORT di server.js Anda
-      ADMIN_USERNAME: admin # Sesuaikan dengan username admin Anda
-      ADMIN_PASSWORD: adminpassword # Sesuaikan dengan password admin Anda
+      PORT: 3003
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: adminpassword
     networks:
       - app_network
-
   nginx:
     image: nginx:latest
     container_name: nginx_proxy
